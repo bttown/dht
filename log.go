@@ -1,9 +1,12 @@
 package dht
 
 import (
-	"log"
+	loglib "log"
+	"os"
 )
 
+var log *loglib.Logger
+
 func init() {
-	log.SetFlags(log.Lshortfile | log.Ltime)
+	log = loglib.New(os.Stderr, "[node] ", loglib.Lshortfile|loglib.Ltime)
 }

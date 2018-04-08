@@ -1,9 +1,7 @@
 package dht
 
 import (
-	"encoding/hex"
 	"errors"
-	"log"
 	"math/rand"
 	"net"
 	"os"
@@ -48,8 +46,8 @@ type Node struct {
 }
 
 func NewNode(opts ...NodeOption) *Node {
-	nid, _ := hex.DecodeString("f0fbf054cc37063b8b773d5dfaf7ebc84e83dce0")
-	// nid := GenerateNodeID(20)
+	// nid, _ := hex.DecodeString("f0fbf054cc37063b8b773d5dfaf7ebc84e83dce0")
+	nid := GenerateNodeID(20)
 	node := Node{
 		NodeInfo: NodeInfo{
 			ID: nid,
@@ -207,15 +205,15 @@ func (node *Node) Serve(opts ...NodeOption) error {
 	log.Printf("Lo address => %s:%d", node.localUDPAddr.IP.String(), node.localUDPAddr.Port)
 	log.Printf("WAN address => %s:%d", node.UDPAddr.IP.String(), node.UDPAddr.Port)
 	if err := node.serveUDP(); err != nil {
-		log.Println("start udp listener fatal", err)
+		log.Println("start UDP listener fatal", err)
 		return err
 	}
 
-	log.Println("start udp listener...")
+	log.Println("start UDP listener...")
 
 	go node.joinDHTNetwork()
 
-	log.Println("start to join the dht network...")
+	log.Println("start to join the DHT network...")
 
 	return node.WaitSignal()
 }

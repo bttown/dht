@@ -1,6 +1,8 @@
 # dht
 golang dht(Distributed Hash Table) node
 
+#### Developing!!!
+
 #### Install
 
     go get -u github.com/bttown/dht

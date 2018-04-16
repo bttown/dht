@@ -3,6 +3,7 @@ package dht
 import (
 	"encoding/hex"
 	"net"
+	// "log"
 )
 
 // Ping is the most basic query. "q" = "ping" A ping query has a single argument,
@@ -27,7 +28,7 @@ func (node *Node) onPingQuery(query *KRPCQuery, addr *net.UDPAddr) error {
 	}
 
 	// log.Printf("send %v response to %s:%d\n", response, addr.IP.String(), addr.Port)
-	return node.writeToUdp(addr, data)
+	return node.writeToUDP(addr, data)
 }
 
 // FindNode is used to find the contact information for a node given its ID.
@@ -53,7 +54,7 @@ func (node *Node) FindNode(addr *net.UDPAddr, nid []byte) error {
 	}
 
 	// log.Printf("send find_node query to %s:%d\n", addr.IP.String(), addr.Port)
-	return node.writeToUdp(addr, data)
+	return node.writeToUDP(addr, data)
 }
 
 // response: {"id" : "<queried nodes id>", "nodes" : "<compact node info>"}
@@ -77,7 +78,7 @@ func (node *Node) onFindNodeQuery(query *KRPCQuery, addr *net.UDPAddr) error {
 	}
 
 	// log.Printf("send %v response to %s:%d\n", response, addr.IP.String(), addr.Port)
-	return node.writeToUdp(addr, data)
+	return node.writeToUDP(addr, data)
 }
 
 // GetPeers gets peers associated with a torrent infohash. "q" = "get_peers" A get_peers
@@ -105,7 +106,7 @@ func (node *Node) GetPeers(addr *net.UDPAddr, infoHash []byte) error {
 	}
 
 	// log.Printf("send find_node query to %s:%d\n", addr.IP.String(), addr.Port)
-	return node.writeToUdp(addr, data)
+	return node.writeToUDP(addr, data)
 }
 
 // response: {"id" : "<queried nodes id>", "token" :"<opaque write token>", "values" : ["<peer 1 info string>", "<peer 2 info string>"]}
@@ -124,7 +125,7 @@ func (node *Node) onGetPeersQuery(query *KRPCQuery, addr *net.UDPAddr) error {
 	}
 
 	// log.Printf("send %s response to %s:%d\n", string(data), addr.IP.String(), addr.Port)
-	return node.writeToUdp(addr, data)
+	return node.writeToUDP(addr, data)
 }
 
 // AnnouncePeer announces that the peer, controlling the querying node, is downloading a torrent on a port.
@@ -156,7 +157,7 @@ func (node *Node) AnnouncePeer(addr *net.UDPAddr, infoHash []byte, token string,
 		return err
 	}
 
-	return node.writeToUdp(addr, data)
+	return node.writeToUDP(addr, data)
 }
 
 // response: {"id" : "<queried nodes id>"}
@@ -182,5 +183,5 @@ func (node *Node) onAnnouncePeer(query *KRPCQuery, addr *net.UDPAddr) error {
 	}
 
 	// log.Printf("send %v response to %s:%d\n", response, addr.IP.String(), addr.Port)
-	return node.writeToUdp(addr, data)
+	return node.writeToUDP(addr, data)
 }

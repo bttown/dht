@@ -14,6 +14,14 @@ type NodeInfo struct {
 	net.UDPAddr
 }
 
+func (info *NodeInfo) GetID() []byte {
+	return info.ID
+}
+
+func (info *NodeInfo) GetStringID() string {
+	return hex.EncodeToString(info.ID)
+}
+
 func (info *NodeInfo) String() string {
 	return fmt.Sprintf("<node-info nid:%s ip:%s port:%d>", hex.EncodeToString(info.ID), info.IP.String(), info.Port)
 }

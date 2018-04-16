@@ -33,24 +33,18 @@ func OptionAddress(addr string) NodeOption {
 			panic(err)
 		}
 
-		log.Println("resolve my IP address...")
-		var tryCount int
-		var ip string
-		for {
-			ip, err = GetMyIP()
-			tryCount++
-			if err == nil {
-				break
-			}
-			if tryCount > 3 {
-				panic(err)
-			}
-		}
+		// log.Println("quering my ip addr...")
+		// ip, err := GetMyIP()
+		// if err != nil {
+		// 	panic(err)
+		// }
 
-		node.UDPAddr = net.UDPAddr{
-			IP:   net.ParseIP(ip),
-			Port: addr.Port,
-		}
+		// log.Println(ip)
+
+		// node.UDPAddr = net.UDPAddr{
+		// 	IP:   net.ParseIP(ip),
+		// 	Port: addr.Port,
+		// }
 		node.localUDPAddr = *addr
 	}
 }

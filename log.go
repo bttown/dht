@@ -8,5 +8,5 @@ import (
 var log *loglib.Logger
 
 func init() {
-	log = loglib.New(os.Stderr, "[node] ", loglib.Lshortfile|loglib.Ltime)
+	log = loglib.New(os.Stderr, "[collector] ", loglib.Lshortfile|loglib.Ltime)
 }

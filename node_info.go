@@ -7,23 +7,29 @@ import (
 	"net"
 )
 
-const NodeInfoEncodedLength = 26
+const (
+	NodeIDBits            = 160
+	NodeIDBytes           = NodeIDBits / 8
+	NodeInfoEncodedLength = 26
+)
 
 type NodeInfo struct {
-	ID []byte
+	ID NodeID
 	net.UDPAddr
 }
 
-func (info *NodeInfo) GetID() []byte {
+type NodeID [NodeIDBytes]byte
+
+func (info *NodeInfo) GetID() NodeID {
 	return info.ID
 }
 
 func (info *NodeInfo) GetStringID() string {
-	return hex.EncodeToString(info.ID)
+	return hex.EncodeToString(info.ID[:])
 }
 
 func (info *NodeInfo) String() string {
-	return fmt.Sprintf("<node-info nid:%s ip:%s port:%d>", hex.EncodeToString(info.ID), info.IP.String(), info.Port)
+	return fmt.Sprintf("<node-info nid:%s ip:%s port:%d>", hex.EncodeToString(info.ID[:]), info.IP.String(), info.Port)
 }
 
 func CompactNodeInfos(nodes []*NodeInfo) []byte {
@@ -39,7 +45,7 @@ func CompactNodeInfos(nodes []*NodeInfo) []byte {
 			continue
 		}
 		binary.LittleEndian.PutUint16(portBuff, uint16(node.Port))
-		data = append(data, node.ID...)
+		data = append(data, node.ID[:]...)
 		data = append(data, ipBuff...)
 		data = append(data, portBuff...)
 	}
@@ -56,8 +62,10 @@ func UnCompactNodeInfos(b []byte) []*NodeInfo {
 
 	var infos = make([]*NodeInfo, 0, length/NodeInfoEncodedLength)
 	for i := 0; i < length; i += NodeInfoEncodedLength {
+		var nid NodeID
+		copy(nid[:], b[i:i+20])
 		ndInfo := &NodeInfo{
-			ID: b[i : i+20],
+			ID: nid,
 			UDPAddr: net.UDPAddr{
 				IP:   net.IPv4(b[i+20], b[i+21], b[i+22], b[i+23]),
 				Port: int(binary.LittleEndian.Uint16(b[i+24 : i+26])),

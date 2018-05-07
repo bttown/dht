@@ -14,14 +14,16 @@ type NodeOption func(node *Node)
 func OptionNodeID(nid string) NodeOption {
 	return func(node *Node) {
 		if nid == RANDOM {
-			node.ID = GenerateNodeID(20)
+			node.ID = GenerateNodeID()
 		} else {
 			b, err := hex.DecodeString(nid)
 			if err != nil || len(b) != 20 {
 				panic("Invalid node ID")
 			}
 
-			node.ID = b
+			var nid NodeID
+			copy(nid[:], b)
+			node.ID = nid
 		}
 	}
 }

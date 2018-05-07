@@ -1,9 +1,10 @@
 package dht
 
 import (
-	// "encoding/hex"
+	"bytes"
+	"encoding/hex"
 	"errors"
-	"github.com/bttown/kbucket"
+	"github.com/bttown/routing-table"
 	"math/rand"
 	"net"
 	"os"
@@ -19,19 +20,24 @@ var bootstrapNodes = []string{
 	"dht.libtorrent.org:25401",
 }
 
-func GenerateNodeID(length int) []byte {
+func GenerateNodeID() NodeID {
 	var r = rand.New(rand.NewSource(time.Now().UnixNano()))
-	buf := make([]byte, length)
+	buf := make([]byte, NodeIDBytes)
 	r.Read(buf)
 
-	return buf
+	var nid NodeID
+	copy(nid[:], buf[:])
+	return nid
 }
 
-func GetNeighborNID(id, target []byte) []byte {
+func GetNeighborNID(id NodeID, hash []byte) NodeID {
 	buf := make([]byte, 0, len(id))
-	buf = append(buf, target[:10]...)
+	buf = append(buf, hash[:10]...)
 	buf = append(buf, id[10:]...)
-	return buf
+
+	var nid NodeID
+	copy(nid[:], buf[:])
+	return nid
 }
 
 type Node struct {
@@ -40,7 +46,7 @@ type Node struct {
 	udpConn      *net.UDPConn
 	NetWork      string
 	tokenManager *TokenManager
-	routeTable   *kbucket.RouteTable
+	table        *table.Table
 	PeerHandler  func(ip string, port int, infoHash, peerID string)
 
 	findNodeChan chan *NodeInfo
@@ -50,7 +56,7 @@ type Node struct {
 }
 
 func NewNode(opts ...NodeOption) *Node {
-	node := Node{
+	node := &Node{
 		NodeInfo:     NodeInfo{},
 		NetWork:      "udp",
 		dumpFileName: "dump.ktb",
@@ -61,47 +67,29 @@ func NewNode(opts ...NodeOption) *Node {
 		closed:       make(chan struct{}),
 	}
 
-	routeTable, err := kbucket.NewFromDumpFile(node.dumpFileName)
-	if err != nil {
-		// node.ID = hex.DecodeString("f0fbf054cc37063b8b773d5dfaf7ebc84e83dce0")
-		node.ID = GenerateNodeID(20)
-		node.routeTable = kbucket.New(node.ID)
-	} else {
-		node.ID = routeTable.OwnerID()
-		node.routeTable = routeTable
+	b, _ := hex.DecodeString("e9b2600d2fc0cd35a9d271d7c5929298ffdddc84")
+	copy(node.ID[:], b)
+	t := table.NewTable(table.Hash(node.ID), node)
+	tid := t.OwnerID()
+	if !bytes.Equal(tid[:], node.ID[:]) {
+		copy(node.ID[:], tid[:])
 	}
+
+	node.table = t
 
 	for _, option := range opts {
-		option(&node)
+		option(node)
 	}
 
-	return &node
-}
-
-func (node *Node) bgSave() {
-	ticker := time.Tick(25 * time.Second)
-	for {
-		<-ticker
-		f, err := os.Create(node.dumpFileName)
-		if err != nil {
-			log.Println("save dump.tb failed", err)
-			return
-		}
-
-		err = node.routeTable.Dump(f)
-		if err != nil {
-			log.Println("save dump.tb failed", err)
-		}
-		f.Close()
-	}
+	return node
 }
 
 func (node *Node) joinDHTNetwork() error {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
+	id := node.GetID()
 	for {
-		id := node.GetID()
 		select {
 		case <-node.closed:
 			return nil
@@ -119,7 +107,7 @@ func (node *Node) joinDHTNetwork() error {
 	}
 }
 
-func (node *Node) handleKRPCMsg(srcAddr *net.UDPAddr, b []byte) error {
+func (node *Node) handleKRPCMsg(remote *net.UDPAddr, b []byte) error {
 	defer func() {
 		if r := recover(); r != nil {
 			var buf = make([]byte, 1024)
@@ -139,30 +127,37 @@ func (node *Node) handleKRPCMsg(srcAddr *net.UDPAddr, b []byte) error {
 		query := new(KRPCQuery)
 		query.Loads(msg.data)
 
-		node.routeTable.Add(kbucket.Contact{
-			ID:      query.NID,
-			UDPAddr: *srcAddr,
+		contactID := table.Hash(query.NID)
+		node.table.Update(&table.Contact{
+			UDPAddr: *remote,
+			NID:     contactID,
 		})
 
 		switch query.Q {
 		case PingType:
-			node.onPingQuery(query, srcAddr)
+			node.onPingQuery(query, remote)
 		case FindNodeType:
-			node.onFindNodeQuery(query, srcAddr)
+			node.onFindNodeQuery(query, remote)
 		case GetPeersType:
-			node.onGetPeersQuery(query, srcAddr)
+			node.onGetPeersQuery(query, remote)
 		case AnnouncePeerType:
-			node.onAnnouncePeer(query, srcAddr)
+			node.onAnnouncePeer(query, remote)
 		default:
 			return nil
 		}
 
 	} else if msg.IsResponse() {
-		response := new(KRPCResponse)
-		response.Loads(msg.data)
+		r := new(KRPCResponse)
+		r.Loads(msg.data)
 
-		if len(response.Nodes) > 0 {
-			for _, nodeInfo := range response.Nodes {
+		contactID := table.Hash(r.QueriedID)
+		node.table.Update(&table.Contact{
+			UDPAddr: *remote,
+			NID:     contactID,
+		})
+
+		if len(r.Nodes) > 0 {
+			for _, nodeInfo := range r.Nodes {
 				node.findNodeChan <- nodeInfo
 			}
 		}
@@ -229,6 +224,8 @@ func (node *Node) WaitSignal() error {
 	close(node.findNodeChan)
 	close(node.closed)
 
+	node.table.Stop()
+
 	node.running = false
 	return node.udpConn.Close()
 }
@@ -251,7 +248,6 @@ func (node *Node) Serve(opts ...NodeOption) error {
 	log.Println("start udp listener...")
 
 	go node.joinDHTNetwork()
-	go node.bgSave()
 
 	log.Println("start to join the dht network...")
 

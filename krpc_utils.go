@@ -48,10 +48,14 @@ func (msg *KRPCMessage) IsResponse() bool {
 	return msg.Y == "r"
 }
 
+func (msg *KRPCMessage) IsError() bool {
+	return msg.Y == "e"
+}
+
 type KRPCResponse struct {
 	T         []byte
 	Q         QueryType
-	QueriedID []byte
+	QueriedID NodeID
 	Token     string
 	Nodes     []*NodeInfo
 	Values    []string
@@ -61,7 +65,7 @@ func (resp *KRPCResponse) Loads(data map[string]interface{}) error {
 	resp.T = data["t"].([]byte)
 	data = data["r"].(map[string]interface{})
 	if queriedID, ok := data["id"]; ok {
-		resp.QueriedID = queriedID.([]byte)
+		copy(resp.QueriedID[:], queriedID.([]byte))
 	}
 	if token, ok := data["token"]; ok {
 		resp.Token = string(token.([]byte))
@@ -88,22 +92,22 @@ func (resp *KRPCResponse) Encode() ([]byte, error) {
 	switch resp.Q {
 	case PingType:
 		data["r"] = map[string]interface{}{
-			"id": resp.QueriedID,
+			"id": resp.QueriedID[:],
 		}
 	case FindNodeType:
 		data["r"] = map[string]interface{}{
-			"id":    resp.QueriedID,
+			"id":    resp.QueriedID[:],
 			"nodes": CompactNodeInfos(resp.Nodes),
 		}
 	case GetPeersType:
 		data["r"] = map[string]interface{}{
-			"id":    resp.QueriedID,
+			"id":    resp.QueriedID[:],
 			"token": resp.Token,
 			"nodes": CompactNodeInfos(resp.Nodes),
 		}
 	case AnnouncePeerType:
 		data["r"] = map[string]interface{}{
-			"id": resp.QueriedID,
+			"id": resp.QueriedID[:],
 		}
 	default:
 		return nil, ErrUnKnowQueryType
@@ -115,8 +119,8 @@ type KRPCQuery struct {
 	T []byte // krpc query token
 	Q QueryType
 
-	NID         []byte
-	TargetNID   []byte
+	NID         NodeID
+	TargetNID   NodeID
 	InfoHash    []byte
 	ImpliedPort int8
 	Port        int
@@ -135,11 +139,11 @@ func (query *KRPCQuery) Loads(data map[string]interface{}) error {
 	data = data["a"].(map[string]interface{})
 
 	if nid, ok := data["id"]; ok {
-		query.NID = nid.([]byte)
+		copy(query.NID[:], nid.([]byte))
 	}
 
 	if target, ok := data["target"]; ok {
-		query.TargetNID = target.([]byte)
+		copy(query.TargetNID[:], target.([]byte))
 	}
 
 	if infoHash, ok := data["info_hash"]; ok {
@@ -171,21 +175,21 @@ func (query *KRPCQuery) Encode() ([]byte, error) {
 	switch query.Q {
 	case PingType:
 		data["a"] = map[string]interface{}{
-			"id": query.NID,
+			"id": query.NID[:],
 		}
 	case FindNodeType:
 		data["a"] = map[string]interface{}{
-			"id":     query.NID,
-			"target": query.TargetNID,
+			"id":     query.NID[:],
+			"target": query.TargetNID[:],
 		}
 	case GetPeersType:
 		data["a"] = map[string]interface{}{
-			"id":        query.NID,
+			"id":        query.NID[:],
 			"info_hash": query.InfoHash,
 		}
 	case AnnouncePeerType:
 		data["a"] = map[string]interface{}{
-			"id":           query.NID,
+			"id":           query.NID[:],
 			"implied_port": query.ImpliedPort,
 			"info_hash":    query.InfoHash,
 			"port":         query.Port,

@@ -13,12 +13,25 @@ import (
 // arguments:  {"id" : "<querying nodes id>"}
 // http://www.bittorrent.org/beps/bep_0005.html#ping
 func (node *Node) Ping(addr *net.UDPAddr) error {
-	return nil
+	req := KRPCQuery{
+		T:   node.tokenManager.GenToken(),
+		Q:   PingType,
+		NID: node.ID,
+	}
+
+	data, err := req.Encode()
+	if err != nil {
+		return err
+	}
+
+	// log.Printf("send ping query to %s:%d\n", addr.IP.String(), addr.Port)
+	return node.writeToUDP(addr, data)
 }
 
 // response: {"id" : "<queried nodes id>"}
 func (node *Node) onPingQuery(query *KRPCQuery, addr *net.UDPAddr) error {
 	response := KRPCResponse{
+		T:         node.tokenManager.GenToken(),
 		Q:         PingType,
 		QueriedID: node.ID,
 	}
@@ -40,7 +53,7 @@ func (node *Node) onPingQuery(query *KRPCQuery, addr *net.UDPAddr) error {
 // its own routing table.
 // arguments:  {"id" : "<querying nodes id>", "target" : "<id of target node>"}
 // http://www.bittorrent.org/beps/bep_0005.html#find-node
-func (node *Node) FindNode(addr *net.UDPAddr, nid []byte) error {
+func (node *Node) FindNode(addr *net.UDPAddr, nid NodeID) error {
 	req := KRPCQuery{
 		T:         node.tokenManager.GenToken(),
 		Q:         FindNodeType,
@@ -50,6 +63,7 @@ func (node *Node) FindNode(addr *net.UDPAddr, nid []byte) error {
 
 	data, err := req.Encode()
 	if err != nil {
+		log.Println(err)
 		return err
 	}
 
@@ -94,10 +108,11 @@ func (node *Node) onFindNodeQuery(query *KRPCQuery, addr *net.UDPAddr) error {
 // arguments:  {"id" : "<querying nodes id>", "info_hash" : "<20-byte infohash of target torrent>"}
 // http://www.bittorrent.org/beps/bep_0005.html#get-peers
 func (node *Node) GetPeers(addr *net.UDPAddr, infoHash []byte) error {
+	rid := GenerateNodeID()
 	query := KRPCQuery{
 		T:        node.tokenManager.GenToken(),
 		NID:      node.ID,
-		InfoHash: GenerateNodeID(20),
+		InfoHash: rid[:],
 	}
 
 	data, err := query.Encode()
@@ -170,7 +185,7 @@ func (node *Node) onAnnouncePeer(query *KRPCQuery, addr *net.UDPAddr) error {
 
 	node.PeerHandler(addr.IP.String(), port,
 		hex.EncodeToString(query.InfoHash),
-		hex.EncodeToString(query.NID))
+		hex.EncodeToString(query.NID[:]))
 
 	response := KRPCResponse{
 		T:         query.T,

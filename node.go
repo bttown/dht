@@ -2,7 +2,7 @@ package dht
 
 import (
 	"bytes"
-	"encoding/hex"
+	// "encoding/hex"
 	"errors"
 	"github.com/bttown/routing-table"
 	"math/rand"
@@ -20,17 +20,26 @@ var bootstrapNodes = []string{
 	"dht.libtorrent.org:25401",
 }
 
-func GenerateNodeID() NodeID {
-	var r = rand.New(rand.NewSource(time.Now().UnixNano()))
-	buf := make([]byte, NodeIDBytes)
-	r.Read(buf)
+var randSource = rand.New(rand.NewSource(time.Now().UnixNano()))
 
+func generateBytes() []byte {
+	buf := make([]byte, NodeIDBytes)
+	randSource.Read(buf)
+	return buf
+}
+
+func GenerateNodeID() NodeID {
+	buf := generateBytes()
 	var nid NodeID
 	copy(nid[:], buf[:])
 	return nid
 }
 
 func GetNeighborNID(id NodeID, hash []byte) NodeID {
+	// Fix bug: when quering node id is empty, it will cause panic
+	if len(hash) == 0 {
+		return id
+	}
 	buf := make([]byte, 0, len(id))
 	buf = append(buf, hash[:10]...)
 	buf = append(buf, id[10:]...)
@@ -67,8 +76,8 @@ func NewNode(opts ...NodeOption) *Node {
 		closed:       make(chan struct{}),
 	}
 
-	b, _ := hex.DecodeString("e9b2600d2fc0cd35a9d271d7c5929298ffdddc84")
-	copy(node.ID[:], b)
+	b := GenerateNodeID()
+	copy(node.ID[:], b[:])
 	t := table.NewTable(table.Hash(node.ID), node)
 	tid := t.OwnerID()
 	if !bytes.Equal(tid[:], node.ID[:]) {
@@ -85,23 +94,22 @@ func NewNode(opts ...NodeOption) *Node {
 }
 
 func (node *Node) joinDHTNetwork() error {
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
-	id := node.GetID()
 	for {
+		id := GenerateNodeID()
 		select {
 		case <-node.closed:
 			return nil
 		case info := <-node.findNodeChan:
 			node.FindNode(&info.UDPAddr, id)
 		case <-ticker.C:
-			for _, bootStrapNode := range bootstrapNodes {
-				nodeAddr, err := net.ResolveUDPAddr(node.NetWork, bootStrapNode)
-				if err != nil {
-					continue
-				}
-				node.FindNode(nodeAddr, id)
+			neighbors := node.table.Closest(table.Hash(id), 8)
+
+			for _, neighbor := range neighbors.Entries() {
+				// log.Println("send find node to neighbor node", neighbor)
+				node.FindNode(&neighbor.UDPAddr, id)
 			}
 		}
 	}
@@ -241,15 +249,15 @@ func (node *Node) Serve(opts ...NodeOption) error {
 	log.Printf("Lo address => %s:%d", node.localUDPAddr.IP.String(), node.localUDPAddr.Port)
 	log.Printf("WAN address => %s:%d", node.UDPAddr.IP.String(), node.UDPAddr.Port)
 	if err := node.serveUDP(); err != nil {
-		log.Println("start udp listener fatal", err)
+		log.Println("start UDP listener fatal", err)
 		return err
 	}
 
-	log.Println("start udp listener...")
+	log.Println("start UDP listener...")
 
 	go node.joinDHTNetwork()
 
-	log.Println("start to join the dht network...")
+	log.Println("start to join the DHT network...")
 
 	return node.WaitSignal()
 }

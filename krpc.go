@@ -126,6 +126,9 @@ func (node *Node) GetPeers(addr *net.UDPAddr, infoHash []byte) error {
 
 // response: {"id" : "<queried nodes id>", "token" :"<opaque write token>", "values" : ["<peer 1 info string>", "<peer 2 info string>"]}
 func (node *Node) onGetPeersQuery(query *KRPCQuery, addr *net.UDPAddr) error {
+	if len(query.InfoHash) == 0 {
+		query.InfoHash = generateBytes()
+	}
 	response := KRPCResponse{
 		T:         query.T,
 		Q:         GetPeersType,

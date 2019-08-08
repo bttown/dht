@@ -4,13 +4,14 @@ import (
 	"bytes"
 	// "encoding/hex"
 	"errors"
-	"github.com/bttown/routing-table"
 	"math/rand"
 	"net"
 	"os"
 	"os/signal"
 	"runtime"
 	"time"
+
+	"github.com/bttown/routing-table"
 )
 
 var bootstrapNodes = []string{
@@ -105,6 +106,14 @@ func (node *Node) joinDHTNetwork() error {
 		case info := <-node.findNodeChan:
 			node.FindNode(&info.UDPAddr, id)
 		case <-ticker.C:
+			for _, bootStrapNode := range bootstrapNodes {
+				nodeAddr, err := net.ResolveUDPAddr(node.NetWork, bootStrapNode)
+				if err != nil {
+					continue
+				}
+				node.FindNode(nodeAddr, id)
+			}
+
 			neighbors := node.table.Closest(table.Hash(id), 8)
 
 			for _, neighbor := range neighbors.Entries() {

@@ -179,7 +179,7 @@ func (node *Node) handleKRPCMsg(remote *net.UDPAddr, b []byte) error {
 			}
 		}
 	} else {
-		log.Println("unknown krpc msg", msg)
+		log.Println("ignore krpc msg", msg)
 	}
 
 	return nil

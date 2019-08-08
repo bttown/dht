@@ -2,6 +2,7 @@ package dht
 
 import (
 	"errors"
+
 	"github.com/IncSW/go-bencode"
 )
 
@@ -125,6 +126,14 @@ type KRPCQuery struct {
 	ImpliedPort int8
 	Port        int
 	Token       string
+}
+
+func LoadKRPCErrorMsg(data map[string]interface{}) error {
+	if e, ok := data["e"]; ok {
+		return errors.New(string(e.([]interface{})[1].([]byte)))
+	}
+
+	return nil
 }
 
 func (query *KRPCQuery) Loads(data map[string]interface{}) error {

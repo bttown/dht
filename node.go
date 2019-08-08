@@ -178,8 +178,9 @@ func (node *Node) handleKRPCMsg(remote *net.UDPAddr, b []byte) error {
 				node.findNodeChan <- nodeInfo
 			}
 		}
-	} else {
-		log.Println("ignore krpc msg", msg)
+	} else if msg.IsError() {
+		err := LoadKRPCErrorMsg(msg.data)
+		log.Println("krpc error msg", err)
 	}
 
 	return nil
